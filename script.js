@@ -79,8 +79,13 @@ function renderTable() {
     updateNextSrNo();
 }
 
-downloadBtn.addEventListener('click', () => {
+downloadBtn.addEventListener('click', async () => {
     if (students.length === 0) return;
+
+    showToast("Generating PDF...");
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
     const teacherName = teacherInput.value || "Not Specified";
     const reportDate = new Date().toLocaleDateString('en-IN', {
@@ -89,147 +94,94 @@ downloadBtn.addEventListener('click', () => {
         year: 'numeric'
     });
 
-    // Build table rows HTML
-    const tableRowsHTML = students.map((s, index) => `
-        <tr>
-            <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-weight: bold;">${index + 1}</td>
-            <td style="border: 1px solid #cbd5e1; padding: 10px;">${s.subject}</td>
-            <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center;">${s.grade}</td>
-            <td style="border: 1px solid #cbd5e1; padding: 10px;">${s.topic}</td>
-            <td style="border: 1px solid #cbd5e1; padding: 10px;">${s.activity}</td>
-        </tr>
-    `).join('');
+    const pageW = doc.internal.pageSize.getWidth();
+    let cursorY = 14;
 
-    // Build the full print HTML — use a separate window so browser renders it natively
-    const printHTML = `
-        <!DOCTYPE html>
-        <html lang="hi">
-        <head>
-            <meta charset="UTF-8">
-            <title>Activity Report - ${teacherName}</title>
-            <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                    font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
-                    color: #1e293b;
-                    padding: 30px;
-                    background: white;
-                    line-height: 1.6;
-                }
-                .header {
-                    text-align: center;
-                    margin-bottom: 24px;
-                    padding-bottom: 16px;
-                    border-bottom: 2px solid #2563eb;
-                }
-                .logo {
-                    width: 90px;
-                    height: auto;
-                    border-radius: 10px;
-                    margin-bottom: 12px;
-                }
-                .title {
-                    font-size: 22px;
-                    font-weight: 700;
-                    color: #1e293b;
-                    margin-bottom: 4px;
-                }
-                .affiliation {
-                    font-size: 13px;
-                    color: #2563eb;
-                    font-weight: 600;
-                    margin-bottom: 6px;
-                }
-                .teacher-info {
-                    font-size: 14px;
-                    font-weight: 600;
-                    color: #334155;
-                    margin-bottom: 20px;
-                    padding: 10px 16px;
-                    background: #f8fafc;
-                    border-left: 3px solid #2563eb;
-                    border-radius: 4px;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 13px;
-                }
-                thead tr {
-                    background-color: #2563eb;
-                    color: white;
-                }
-                thead th {
-                    border: 1px solid #1d4ed8;
-                    padding: 10px 12px;
-                    text-align: left;
-                    font-weight: 700;
-                    font-size: 12px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                }
-                tbody tr:nth-child(even) { background-color: #f8fafc; }
-                tbody td {
-                    border: 1px solid #cbd5e1;
-                    padding: 10px 12px;
-                    vertical-align: top;
-                }
-                .footer {
-                    margin-top: 20px;
-                    text-align: right;
-                    font-size: 12px;
-                    color: #64748b;
-                }
-                @media print {
-                    body { padding: 15px; }
-                    @page { margin: 15mm; size: A4; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <img class="logo" src="https://i.ibb.co/dsMrDjCs/Screenshot-2026-04-22-101540.png" alt="School Logo" crossorigin="anonymous">
-                <div class="title">Integrated Skill Based Activity</div>
-                <div class="affiliation">Affiliation No: 3330552</div>
-            </div>
-            <div class="teacher-info">Teacher Name: &nbsp; ${teacherName}</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width:5%;">Sr.</th>
-                        <th style="width:18%;">Subject</th>
-                        <th style="width:10%;">Grade</th>
-                        <th style="width:22%;">Topic</th>
-                        <th>Activity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRowsHTML}
-                </tbody>
-            </table>
-            <div class="footer">Generated on: ${reportDate}</div>
-        </body>
-        </html>
-    `;
+    // ── Try to load logo ──
+    try {
+        const logoUrl = "https://i.ibb.co/dsMrDjCs/Screenshot-2026-04-22-101540.png";
+        const resp = await fetch(logoUrl);
+        const blob = await resp.blob();
+        const base64 = await new Promise((res) => {
+            const reader = new FileReader();
+            reader.onloadend = () => res(reader.result);
+            reader.readAsDataURL(blob);
+        });
+        const imgW = 22, imgH = 22;
+        doc.addImage(base64, 'PNG', (pageW - imgW) / 2, cursorY, imgW, imgH);
+        cursorY += imgH + 4;
+    } catch (e) {
+        cursorY += 6; // skip logo space if blocked
+    }
 
-    // Open a new window, write HTML, wait for fonts to load, then print
-    const printWindow = window.open('', '_blank', 'width=900,height=700');
-    printWindow.document.open();
-    printWindow.document.write(printHTML);
-    printWindow.document.close();
+    // ── Header Title ──
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Integrated Skill Based Activity', pageW / 2, cursorY, { align: 'center' });
+    cursorY += 7;
 
-    // Wait for fonts and images to load, then trigger print dialog
-    printWindow.onload = function () {
-        setTimeout(() => {
-            printWindow.focus();
-            printWindow.print();
-            // Close after print dialog is dismissed
-            printWindow.onafterprint = function () {
-                printWindow.close();
-            };
-        }, 1500); // 1.5s for fonts to load
-    };
+    // ── Affiliation ──
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(37, 99, 235);
+    doc.text('Affiliation No: 3330552', pageW / 2, cursorY, { align: 'center' });
+    cursorY += 5;
 
-    showToast("Print dialog will open. Choose 'Save as PDF'!");
+    // ── Blue divider line ──
+    doc.setDrawColor(37, 99, 235);
+    doc.setLineWidth(0.6);
+    doc.line(14, cursorY, pageW - 14, cursorY);
+    cursorY += 6;
+
+    // ── Teacher Info Box ──
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(37, 99, 235);
+    doc.setLineWidth(0);
+    doc.rect(14, cursorY, pageW - 28, 9, 'F');
+    doc.setDrawColor(37, 99, 235);
+    doc.setLineWidth(0.8);
+    doc.line(14, cursorY, 14, cursorY + 9); // left blue border
+    doc.setTextColor(51, 65, 85);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(`Teacher Name:  ${teacherName}`, 18, cursorY + 6);
+    cursorY += 14;
+
+    // ── Data Table ──
+    doc.autoTable({
+        startY: cursorY,
+        head: [['Sr.', 'Subject', 'Grade', 'Topic', 'Activity']],
+        body: students.map((s, i) => [i + 1, s.subject, s.grade, s.topic, s.activity]),
+        headStyles: {
+            fillColor: [37, 99, 235],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 10,
+            halign: 'left'
+        },
+        bodyStyles: { fontSize: 10, textColor: [30, 41, 59] },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+            0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
+            1: { cellWidth: 35 },
+            2: { cellWidth: 22, halign: 'center' },
+            3: { cellWidth: 40 },
+            4: { cellWidth: 'auto' }
+        },
+        margin: { left: 14, right: 14 },
+        styles: { overflow: 'linebreak', valign: 'top', lineColor: [203, 213, 225], lineWidth: 0.3 }
+    });
+
+    // ── Footer ──
+    const finalY = doc.internal.pageSize.getHeight() - 10;
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on: ${reportDate}`, pageW - 14, finalY, { align: 'right' });
+
+    // ── Save ──
+    const safeName = teacherName.replace(/[^a-z0-9]/gi, '_');
+    doc.save(`Activity_Report_${safeName}.pdf`);
+    showToast("PDF downloaded successfully!");
 });

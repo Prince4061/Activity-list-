@@ -1,6 +1,5 @@
 const form = document.getElementById('gradeForm');
 const tableBody = document.getElementById('tableBody');
-const emptyState = document.getElementById('emptyState');
 const downloadBtn = document.getElementById('downloadPdf');
 const toast = document.getElementById('toast');
 const srNoInput = document.getElementById('srNo');
@@ -37,13 +36,13 @@ form.addEventListener('submit', (e) => {
 
     students.push(student);
     renderTable();
-    
+
     // Clear specific fields
     document.getElementById('subject').value = '';
     document.getElementById('grade').value = '';
     document.getElementById('topic').value = '';
     document.getElementById('activity').value = '';
-    
+
     updateNextSrNo();
     showToast("Entry added successfully!");
 });
@@ -80,76 +79,157 @@ function renderTable() {
     updateNextSrNo();
 }
 
-const getBase64Image = (img) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-    return canvas.toDataURL("image/png");
-};
-
 downloadBtn.addEventListener('click', () => {
     if (students.length === 0) return;
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
     const teacherName = teacherInput.value || "Not Specified";
-    
-    // Add School Logo
-    const logoImg = document.getElementById('schoolLogo');
-    try {
-        const imgData = getBase64Image(logoImg);
-        doc.addImage(imgData, 'PNG', 14, 10, 25, 25);
-    } catch (e) {
-        console.error("Logo generation failed", e);
-    }
-
-    // Header Content
-    doc.setFontSize(20);
-    doc.setTextColor(30, 41, 59);
-    doc.setFont("helvetica", "bold");
-    doc.text("Integrated Skill Based Activity", 45, 18);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(37, 99, 235);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Affiliation No: 3330552`, 45, 25);
-    
-    doc.setFontSize(12);
-    doc.setTextColor(100);
-    doc.text(`Teacher: ${teacherName}`, 45, 32);
-    
-    doc.setFontSize(10);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 195, 18, { align: "right" });
-
-    // Table Columns and Body
-    const tableData = students.map((s, index) => [
-        index + 1, 
-        s.subject, 
-        s.grade, 
-        s.topic,
-        s.activity
-    ]);
-
-    doc.autoTable({
-        startY: 45,
-        head: [['Sr.', 'Subject', 'Grade', 'Topic', 'Activity']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: { fillColor: [37, 99, 235], fontSize: 10, halign: 'center', textColor: 255 },
-        styles: { fontSize: 10, cellPadding: 5, overflow: 'linebreak', textColor: [50, 50, 50] },
-        columnStyles: {
-            0: { cellWidth: 15, halign: 'center' },
-            1: { cellWidth: 35 },
-            2: { cellWidth: 25, halign: 'center' },
-            3: { cellWidth: 45 },
-            4: { cellWidth: 'auto' }
-        },
-        margin: { top: 45 }
+    const reportDate = new Date().toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
     });
 
-    const fileName = `Activity_Report_${teacherName.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
-    doc.save(fileName);
-    showToast("Report downloaded successfully!");
+    // Build table rows HTML
+    const tableRowsHTML = students.map((s, index) => `
+        <tr>
+            <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-weight: bold;">${index + 1}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 10px;">${s.subject}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center;">${s.grade}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 10px;">${s.topic}</td>
+            <td style="border: 1px solid #cbd5e1; padding: 10px;">${s.activity}</td>
+        </tr>
+    `).join('');
+
+    // Build the full print HTML — use a separate window so browser renders it natively
+    const printHTML = `
+        <!DOCTYPE html>
+        <html lang="hi">
+        <head>
+            <meta charset="UTF-8">
+            <title>Activity Report - ${teacherName}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
+                    color: #1e293b;
+                    padding: 30px;
+                    background: white;
+                    line-height: 1.6;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 24px;
+                    padding-bottom: 16px;
+                    border-bottom: 2px solid #2563eb;
+                }
+                .logo {
+                    width: 90px;
+                    height: auto;
+                    border-radius: 10px;
+                    margin-bottom: 12px;
+                }
+                .title {
+                    font-size: 22px;
+                    font-weight: 700;
+                    color: #1e293b;
+                    margin-bottom: 4px;
+                }
+                .affiliation {
+                    font-size: 13px;
+                    color: #2563eb;
+                    font-weight: 600;
+                    margin-bottom: 6px;
+                }
+                .teacher-info {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #334155;
+                    margin-bottom: 20px;
+                    padding: 10px 16px;
+                    background: #f8fafc;
+                    border-left: 3px solid #2563eb;
+                    border-radius: 4px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 13px;
+                }
+                thead tr {
+                    background-color: #2563eb;
+                    color: white;
+                }
+                thead th {
+                    border: 1px solid #1d4ed8;
+                    padding: 10px 12px;
+                    text-align: left;
+                    font-weight: 700;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }
+                tbody tr:nth-child(even) { background-color: #f8fafc; }
+                tbody td {
+                    border: 1px solid #cbd5e1;
+                    padding: 10px 12px;
+                    vertical-align: top;
+                }
+                .footer {
+                    margin-top: 20px;
+                    text-align: right;
+                    font-size: 12px;
+                    color: #64748b;
+                }
+                @media print {
+                    body { padding: 15px; }
+                    @page { margin: 15mm; size: A4; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <img class="logo" src="https://i.ibb.co/dsMrDjCs/Screenshot-2026-04-22-101540.png" alt="School Logo" crossorigin="anonymous">
+                <div class="title">Integrated Skill Based Activity</div>
+                <div class="affiliation">Affiliation No: 3330552</div>
+            </div>
+            <div class="teacher-info">Teacher Name: &nbsp; ${teacherName}</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:5%;">Sr.</th>
+                        <th style="width:18%;">Subject</th>
+                        <th style="width:10%;">Grade</th>
+                        <th style="width:22%;">Topic</th>
+                        <th>Activity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHTML}
+                </tbody>
+            </table>
+            <div class="footer">Generated on: ${reportDate}</div>
+        </body>
+        </html>
+    `;
+
+    // Open a new window, write HTML, wait for fonts to load, then print
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    printWindow.document.open();
+    printWindow.document.write(printHTML);
+    printWindow.document.close();
+
+    // Wait for fonts and images to load, then trigger print dialog
+    printWindow.onload = function () {
+        setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+            // Close after print dialog is dismissed
+            printWindow.onafterprint = function () {
+                printWindow.close();
+            };
+        }, 1500); // 1.5s for fonts to load
+    };
+
+    showToast("Print dialog will open. Choose 'Save as PDF'!");
 });

@@ -111,7 +111,7 @@ downloadBtn.addEventListener('click', async () => {
         doc.addImage(base64, 'PNG', (pageW - imgW) / 2, cursorY, imgW, imgH);
         cursorY += imgH + 4;
     } catch (e) {
-        cursorY += 6; // skip logo space if blocked
+        cursorY += 6;
     }
 
     // ── Header Title ──
@@ -136,42 +136,47 @@ downloadBtn.addEventListener('click', async () => {
 
     // ── Teacher Info Box ──
     doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(37, 99, 235);
-    doc.setLineWidth(0);
     doc.rect(14, cursorY, pageW - 28, 9, 'F');
     doc.setDrawColor(37, 99, 235);
     doc.setLineWidth(0.8);
-    doc.line(14, cursorY, 14, cursorY + 9); // left blue border
+    doc.line(14, cursorY, 14, cursorY + 9);
     doc.setTextColor(51, 65, 85);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(`Teacher Name:  ${teacherName}`, 18, cursorY + 6);
     cursorY += 14;
 
-    // ── Data Table ──
-    doc.autoTable({
-        startY: cursorY,
-        head: [['Sr.', 'Subject', 'Grade', 'Topic', 'Activity']],
-        body: students.map((s, i) => [i + 1, s.subject, s.grade, s.topic, s.activity]),
-        headStyles: {
-            fillColor: [37, 99, 235],
-            textColor: 255,
-            fontStyle: 'bold',
-            fontSize: 10,
-            halign: 'left'
-        },
-        bodyStyles: { fontSize: 10, textColor: [30, 41, 59] },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: {
-            0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
-            1: { cellWidth: 35 },
-            2: { cellWidth: 22, halign: 'center' },
-            3: { cellWidth: 40 },
-            4: { cellWidth: 'auto' }
-        },
-        margin: { left: 14, right: 14 },
-        styles: { overflow: 'linebreak', valign: 'top', lineColor: [203, 213, 225], lineWidth: 0.3 }
+    // ── Render table via html2canvas (preserves Hindi/Devanagari text) ──
+    const tableEl = document.getElementById('reportTable');
+
+    // Temporarily style the table for clean capture
+    const origBg = tableEl.style.background;
+    tableEl.style.background = '#ffffff';
+
+    const canvas = await html2canvas(tableEl, {
+        scale: 3,           // high DPI for sharp text
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
     });
+
+    tableEl.style.background = origBg;
+
+    const imgData = canvas.toDataURL('image/png');
+    const availW = pageW - 28;           // left+right margin = 14 each
+    const availH = doc.internal.pageSize.getHeight() - cursorY - 16; // space above footer
+    const ratio = canvas.width / canvas.height;
+
+    let drawW = availW;
+    let drawH = drawW / ratio;
+
+    // If table is taller than available space, scale down
+    if (drawH > availH) {
+        drawH = availH;
+        drawW = drawH * ratio;
+    }
+
+    doc.addImage(imgData, 'PNG', 14, cursorY, drawW, drawH);
 
     // ── Footer ──
     const finalY = doc.internal.pageSize.getHeight() - 10;
